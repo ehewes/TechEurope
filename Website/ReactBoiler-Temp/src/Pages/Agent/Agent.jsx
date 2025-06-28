@@ -145,7 +145,8 @@ function ChatContent({ onTitleChange }) {
           'chat': '💬',
           'config-analysis': '🔍', 
           'repo-analysis': '📊',
-          'create-issue': '🎫'
+          'create-issue': '🎫',
+          'list-issues': '📋'
         };
         
         const emoji = functionEmojis[classificationData.function] || '🤖';
