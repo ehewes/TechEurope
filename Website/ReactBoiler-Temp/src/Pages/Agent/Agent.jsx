@@ -23,7 +23,7 @@ function ChatContent({ onTitleChange }) {
   const handleInputChange = (e) => {
     setInput(e.target.value);
   };
-s
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -72,7 +72,7 @@ s
     e.preventDefault();
     if (!input.trim() && !uploadedFile) return;
 
-    // Prepare message content
+    // Prepare message content for display
     let messageContent = input.trim();
     if (uploadedFile) {
       messageContent = `${messageContent}\n\n**Uploaded File: ${uploadedFile.name}**\n\`\`\`${uploadedFile.name.endsWith('.json') ? 'json' : 'yaml'}\n${fileContent}\n\`\`\``;
@@ -90,58 +90,107 @@ s
 
     setIsLoading(true);
 
-    try {
-      // Prepare the message for the API
-      let apiMessage = input.trim();
-      if (uploadedFile) {
-        apiMessage = `Please analyze this ${uploadedFile.name.endsWith('.json') ? 'JSON' : 'YAML'} configuration file for SRE best practices, security issues, and cost optimization opportunities:\n\nFilename: ${uploadedFile.name}\n\nContent:\n${fileContent}`;
-        if (input.trim()) {
-          apiMessage += `\n\nAdditional context: ${input.trim()}`;
-        }
-      }
+    // Store current input/file state before clearing
+    const currentInput = input.trim();
+    const currentFile = uploadedFile;
+    const currentFileContent = fileContent;
 
-      const response = await fetch("http://localhost:3051/api/chat", {
+    try {
+      // Step 1: Use intelligent filtration to determine which function to call
+      const filterResponse = await fetch("http://localhost:5001/api/filter-request", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: apiMessage }),
+        body: JSON.stringify({
+          message: currentInput,
+          has_file: !!currentFile,
+          file_type: currentFile ? currentFile.type : ''
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch response from API");
+      if (!filterResponse.ok) {
+        throw new Error("Failed to classify request");
       }
 
-      const data = await response.json();
-      let content = data.response.value;
-      const annotations = data.response.annotations || [];
+      const classification = await filterResponse.json();
+      
+      // Extract the actual classification from the nested structure
+      const classificationData = classification.classification || classification;
+      
+      // Log classification for debugging
+      console.log("Request classified as:", classificationData);
 
-      // Process annotations for citations
-      annotations.forEach((annotation, index) => {
-        const marker = annotation.text; // e.g., "【4:1†source】"
-        const footnoteNumber = index + 1;
-        const footnoteText = ``; // Use superscript for citation
-
-        // Replace the annotation marker in the content
-        content = content.replace(marker, footnoteText);
+      // Step 2: Execute the appropriate function
+      const executeResponse = await fetch("http://localhost:5001/api/execute-function", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          function: classificationData.function,
+          params: classificationData.extracted_params || {},
+          message: currentInput,
+          file_content: currentFileContent
+        }),
       });
 
-      // Append a references section if annotations exist
-      if (annotations.length > 0) {
-        content += "\n\n---\n\n**References:**\n";
+      const data = await executeResponse.json();
+
+      if (executeResponse.ok) {
+        let content = data.response?.value || data.message || 'Response received';
+        
+        // Add function type indicator with emoji
+        const functionEmojis = {
+          'chat': '💬',
+          'config-analysis': '🔍', 
+          'repo-analysis': '📊',
+          'create-issue': '🎫'
+        };
+        
+        const emoji = functionEmojis[classificationData.function] || '🤖';
+        content = `${emoji} ${content}`;
+        
+        // Process annotations if they exist
+        const annotations = data.response?.annotations || [];
         annotations.forEach((annotation, index) => {
+          const marker = annotation.text;
           const footnoteNumber = index + 1;
-          content += `${footnoteNumber}. ${annotation.file_citation.file_id}\n`;
+          const footnoteText = ``;
+          content = content.replace(marker, footnoteText);
         });
-      }
 
-      const assistantMessage = { role: "assistant", content };
-      setMessages((prev) => [...prev, assistantMessage]);
+        // Append references section if annotations exist
+        if (annotations.length > 0) {
+          content += "\n\n---\n\n**References:**\n";
+          annotations.forEach((annotation, index) => {
+            const footnoteNumber = index + 1;
+            content += `${footnoteNumber}. ${annotation.file_citation?.file_id || 'Reference'}\n`;
+          });
+        }
+
+        const assistantMessage = { 
+          role: "assistant", 
+          content,
+          classification: {
+            function: classificationData.function,
+            confidence: classificationData.confidence,
+            emoji: emoji
+          }
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } else {
+        const errorMessage = { 
+          role: "assistant", 
+          content: `❌ Error: ${data.error || 'Something went wrong'}` 
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
     } catch (error) {
       console.error("Error:", error);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, something went wrong. Please try again." },
+        { role: "assistant", content: "❌ Sorry, unable to connect to the server. Please try again." },
       ]);
     } finally {
       setIsLoading(false);
@@ -161,10 +210,10 @@ s
               <Bot size={32} className="text-black" />
             </div>
             <h2 className="text-2xl font-bold text-black mb-2">
-              Welcome to SRE Guardian
+              Welcome to ACI.dev SRE Agent
             </h2>
             <p className="text-gray-600 max-w-md mb-6">
-              Upload your deployment configurations for AI-powered analysis and cost optimization insights!
+              Your intelligent SRE assistant powered by ACI.dev! Upload configs, analyze repos, create GitHub issues, or chat about SRE best practices.
             </p>
             <div className="flex flex-col items-center gap-4">
               <Button
@@ -174,7 +223,9 @@ s
               >
                 Upload Configuration File
               </Button>
-              <p className="text-sm text-gray-500">Supports .yaml, .yml, .json files</p>
+              <p className="text-sm text-gray-500">
+                💬 Chat • 🔍 Config Analysis • 📊 Repo Analysis • 🎫 GitHub Issues
+              </p>
             </div>
           </div>
         ) : (
@@ -297,7 +348,7 @@ s
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder={uploadedFile ? "Add context or questions about your configuration..." : "Describe your deployment configuration or ask about SRE best practices..."}
+              placeholder={uploadedFile ? "Add context or questions about your configuration..." : "Ask about SRE practices, upload configs, analyze repos (owner/repo), or create GitHub issues..."}
               className="min-h-[40px] max-h-[50px] py-2 px-4 pr-20 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-2xl"
             />
             <div className="absolute right-2 bottom-2 flex gap-1">
