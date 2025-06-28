@@ -17,14 +17,21 @@ import {
   Avatar,
 } from "@nextui-org/react"
 
-const AcmeLogo = () => {
+const SRELogo = () => {
   return (
     <svg fill="none" height="36" viewBox="0 0 32 32" width="36">
       <path
         clipRule="evenodd"
-        d="M17.6482 10.1305L15.8785 7.02583L7.02979 22.5499H10.5278L17.6482 10.1305ZM19.8798 14.0457L18.11 17.1983L19.394 19.4511H16.8453L15.1056 22.5499H24.7272L19.8798 14.0457Z"
-        fill="currentColor"
+        d="M16 2L4 8v8c0 7.3 5.1 14.1 12 16 6.9-1.9 12-8.7 12-16V8L16 2z"
+        fill="black"
         fillRule="evenodd"
+      />
+      <path
+        d="M11 16l2 2 8-8"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   )
@@ -39,10 +46,11 @@ export default function Header() {
   }
 
   return (
-    <Navbar className=" bg-[#155c45]">
+    <Navbar className="bg-white border-b border-gray-200">
       <NavbarBrand>
         <Link to="/" className="flex items-center gap-3">
-          <p className="font-bold text-inherit text-3xl text-white">RetireFlow</p>
+          <SRELogo />
+          <p className="font-bold text-inherit text-2xl text-black">DeployRight</p>
         </Link>
       </NavbarBrand>
 
@@ -52,63 +60,79 @@ export default function Header() {
             as={Link}
             color={location.pathname === "/features" ? "primary" : "foreground"}
             to="/features"
-            className="text-[#fff] text-1xl font-bold hover:text-purple-400 transition-colors duration-300 ease-in-out"
+            className="text-black text-lg font-medium hover:text-gray-600 transition-colors duration-300 ease-in-out"
           >
             Features
           </NextUILink>
         </NavbarItem>
-        <NavbarItem isActive={location.pathname === "/faq"}>
+        <NavbarItem isActive={location.pathname === "/pricing"}>
           <NextUILink
             as={Link}
-            color={location.pathname === "/faq" ? "primary" : "foreground"}
-            to="/faq"
-            className="text-[#fff] text-1xl font-bold hover:text-purple-400 transition-colors duration-300 ease-in-out"
-            aria-current={location.pathname === "/faq" ? "page" : undefined}
+            color={location.pathname === "/pricing" ? "primary" : "foreground"}
+            to="/pricing"
+            className="text-black text-lg font-medium hover:text-gray-600 transition-colors duration-300 ease-in-out"
           >
-            FAQ
+            Pricing
+          </NextUILink>
+        </NavbarItem>
+        <NavbarItem isActive={location.pathname === "/docs"}>
+          <NextUILink
+            as={Link}
+            color={location.pathname === "/docs" ? "primary" : "foreground"}
+            to="/docs"
+            className="text-black text-lg font-medium hover:text-gray-600 transition-colors duration-300 ease-in-out"
+          >
+            Docs
           </NextUILink>
         </NavbarItem>
         {user && (
-  <NavbarItem isActive={location.pathname === "/integrations"}>
-    <NextUILink
-      as={Link}
-      color={location.pathname === "/agent" ? "primary" : "foreground"}
-      to="/agent"
-      className="text-[#fff] text-1xl font-bold hover:text-purple-400 transition-colors duration-300 ease-in-out"
-    >
-      Agent
-    </NextUILink>
-  </NavbarItem>
-)}
+          <NavbarItem isActive={location.pathname === "/agent"}>
+            <NextUILink
+              as={Link}
+              color={location.pathname === "/agent" ? "primary" : "foreground"}
+              to="/agent"
+              className="text-black text-lg font-medium hover:text-gray-600 transition-colors duration-300 ease-in-out"
+            >
+              Dashboard
+            </NextUILink>
+          </NavbarItem>
+        )}
       </NavbarContent>
 
       <NavbarContent justify="end">
         {user ? (
           <Dropdown placement="bottom-end">
             <DropdownTrigger>
-              <button className="flex items-center gap-2 rounded-full transition-colors">
-                <span className="hidden text-sm font-medium md:block text-white">
+              <button className="flex items-center gap-2 rounded-full transition-colors hover:bg-gray-100 px-3 py-2">
+                <span className="hidden text-sm font-medium md:block text-black">
                   {user.displayName?.split(" ")[0] || "User"}
                 </span>
+                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-white text-sm font-bold">
+                  {(user.displayName?.charAt(0) || "U").toUpperCase()}
+                </div>
               </button>
             </DropdownTrigger>
-            <DropdownMenu aria-label="User menu" variant="flat" className="mt-3 ml-14">
-              <DropdownItem key="profile" textValue="Profile">
+            <DropdownMenu aria-label="User menu" variant="flat" className="mt-3 ml-14 bg-white border border-gray-200 shadow-lg">
+              <DropdownItem key="profile" textValue="Profile" className="text-black hover:bg-gray-100">
                 <Link to="/profile" className="w-full">
                   Profile
                 </Link>
               </DropdownItem>
-              <DropdownItem key="settings" textValue="Settings">
+              <DropdownItem key="dashboard" textValue="Dashboard" className="text-black hover:bg-gray-100">
+                <Link to="/agent" className="w-full">
+                  Dashboard
+                </Link>
+              </DropdownItem>
+              <DropdownItem key="settings" textValue="Settings" className="text-black hover:bg-gray-100">
                 <Link to="/settings" className="w-full">
                   Settings
                 </Link>
               </DropdownItem>
               <DropdownItem
                 key="logout"
-                className="text-danger"
+                className="text-red-600 hover:bg-red-50"
                 color="danger"
                 onPress={handleLogOut}
-
               >
                 Log Out
               </DropdownItem>
@@ -120,22 +144,20 @@ export default function Header() {
               <NextUILink
                 as={Link}
                 to="/login"
-                className="text-[#fff] text-1xl font-bold hover:text-blue-400 transition-colors duration-300 ease-in-out"
+                className="text-black text-lg font-medium hover:text-gray-600 transition-colors duration-300 ease-in-out"
               >
                 Login
               </NextUILink>
             </NavbarItem>
             <NavbarItem>
-              <NextUILink
+              <Button
                 as={Link}
                 to="/register"
-                color="primary"
-                variant="flat"
+                className="bg-black text-white font-medium hover:bg-gray-800 transition-all"
                 size="sm"
-                className="text-[#fff] text-1xl font-bold hover:text-blue-400 transition-colors duration-300 ease-in-out"
               >
-                Sign Up
-              </NextUILink>
+                Get Started
+              </Button>
             </NavbarItem>
           </>
         )}
