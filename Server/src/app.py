@@ -367,19 +367,29 @@ Available Functions:
 2. "config-analysis" - Analyze YAML/JSON configuration files  
 3. "repo-analysis" - Analyze specific GitHub repositories
 4. "create-issue" - Create GitHub issues
+5. "list-issues" - List GitHub issues from repositories
 
 Classification Rules:
 - Has file upload (YAML/JSON) OR mentions "config" OR "configuration" → "config-analysis"
 - Mentions specific repo like "owner/repo" OR "analyze repository" OR "analyze repo" → "repo-analysis"  
 - Mentions "create issue" OR "file bug" OR "track problem" OR "create an issue" OR "file an issue" OR "report this" OR "log this issue" → "create-issue"
+- Mentions "list issues" OR "show issues" OR "get issues" OR "what issues" OR "view issues" OR "issues in" OR "issues from" → "list-issues"
 - Everything else → "chat"
 
-Pay special attention to create-issue patterns:
+Pay special attention to patterns:
+create-issue:
 - "create an issue on [repo] saying [description]"
 - "file a bug for [component/repo]"
 - "track this in [repo]"
 - "report this problem"
 - "log this as an issue"
+
+list-issues:
+- "list issues from [repo]"
+- "show me issues in [repo]"
+- "what issues are open in [repo]"
+- "get issues for [repo]"
+- "view issues from [repo]"
 
 CRITICAL: Respond with ONLY valid JSON. No other text.
 
@@ -416,7 +426,7 @@ Classify this request and return JSON only."""
         classification_result = json.loads(response_text)
         
         # Enhanced parameter extraction for repo-analysis and create-issue functions
-        if classification_result.get("function") in ["repo-analysis", "create-issue"]:
+        if classification_result.get("function") in ["repo-analysis", "create-issue", "list-issues"]:
             extracted_params = extract_parameters_from_message(message, classification_result.get("function"))
             classification_result["extracted_params"] = extracted_params
         
@@ -468,8 +478,27 @@ def execute_function():
             repo_owner = params.get('repo_owner')
             repo_name = params.get('repo_name')
             
+            # Default repo_owner to 'ehewes' if not provided but repo_name is present
+            if repo_name and not repo_owner:
+                repo_owner = "ehewes"
+            
+            # Default both repo_owner and repo_name if neither is specified
+            if not repo_owner and not repo_name:
+                repo_owner = "ehewes"
+                repo_name = "TechEurope"
+            
             if not repo_owner or not repo_name:
-                return jsonify({"error": "Missing repo_owner or repo_name for repository analysis"}), 400
+                # Try to provide helpful feedback
+                if not repo_owner:
+                    error_msg = f"Found repository '{repo_name}' but could not determine the owner. Please specify like 'owner/{repo_name}'"
+                else:
+                    error_msg = f"Found owner '{repo_owner}' but could not determine the repository name. Please specify like '{repo_owner}/repository-name'"
+                
+                return jsonify({
+                    "error": error_msg,
+                    "suggestion": "Try rephrasing your request like: 'analyze owner/repo' or 'analyze the TechEurope repository'",
+                    "extracted_params": params
+                }), 400
                 
             return execute_repo_analysis(repo_owner, repo_name, os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
             
@@ -480,12 +509,19 @@ def execute_function():
             title = params.get('title', message.split('\n')[0] if message else 'Issue from AI Agent')
             body = params.get('body', message)
             
-            # Better error handling with helpful messages
+            # Default repo_owner to 'ehewes' if not provided but repo_name is present
+            if repo_name and not repo_owner:
+                repo_owner = "ehewes"
+            
+            # Default both repo_owner and repo_name if neither is specified
+            if not repo_owner and not repo_name:
+                repo_owner = "ehewes"
+                repo_name = "TechEurope"
+            
+            # Better error handling with helpful messages (only if truly missing after defaults)
             if not repo_owner or not repo_name:
                 # Try to provide helpful feedback
-                if not repo_owner and not repo_name:
-                    error_msg = "Could not determine which repository to create the issue in. Please specify a repository (e.g., 'owner/repo') or try: 'create an issue on username/repository-name saying [description]'"
-                elif not repo_owner:
+                if not repo_owner:
                     error_msg = f"Found repository '{repo_name}' but could not determine the owner. Please specify like 'owner/{repo_name}'"
                 else:
                     error_msg = f"Found owner '{repo_owner}' but could not determine the repository name. Please specify like '{repo_owner}/repository-name'"
@@ -497,6 +533,35 @@ def execute_function():
                 }), 400
                 
             return execute_create_issue(repo_owner, repo_name, title, body, os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
+            
+        elif function_name == "list-issues":
+            # Extract repo details and list GitHub issues
+            repo_owner = params.get('repo_owner')
+            repo_name = params.get('repo_name')
+            
+            # Default repo_owner to 'ehewes' if not provided but repo_name is present
+            if repo_name and not repo_owner:
+                repo_owner = "ehewes"
+            
+            # Default both repo_owner and repo_name if neither is specified
+            if not repo_owner and not repo_name:
+                repo_owner = "ehewes"
+                repo_name = "TechEurope"
+            
+            if not repo_owner or not repo_name:
+                # Try to provide helpful feedback
+                if not repo_owner:
+                    error_msg = f"Found repository '{repo_name}' but could not determine the owner. Please specify like 'owner/{repo_name}'"
+                else:
+                    error_msg = f"Found owner '{repo_owner}' but could not determine the repository name. Please specify like '{repo_owner}/repository-name'"
+                
+                return jsonify({
+                    "error": error_msg,
+                    "suggestion": "Try rephrasing your request like: 'list issues from owner/repo' or 'show me issues in TechEurope'",
+                    "extracted_params": params
+                }), 400
+                
+            return execute_list_issues(repo_owner, repo_name, os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
             
         elif function_name == "chat":
             # Call the enhanced chat endpoint
@@ -820,6 +885,45 @@ Example: {{"repo_owner": "microsoft", "repo_name": "vscode"}}"""
                     "repo_owner": extracted.get("repo_owner", ""),
                     "repo_name": extracted.get("repo_name", "")
                 }
+        elif function_type == "list-issues":
+            # First try regex patterns for explicit owner/repo format
+            repo_pattern = r'([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)'
+            repo_match = re.search(repo_pattern, message)
+            
+            if repo_match:
+                owner, repo = repo_match.group(1).split('/')
+                params = {
+                    "repo_owner": owner,
+                    "repo_name": repo
+                }
+            else:
+                # Use GPT-4o to extract repository information from natural language
+                extraction_prompt = f"""Extract GitHub repository information from this list issues request: "{message}"
+
+Examples of what to extract:
+- "list issues from TechEurope" → repo_owner: "ehewes", repo_name: "TechEurope"
+- "show me issues in my-project" → repo_name: "my-project", repo_owner: "" (to be defaulted)
+- "what issues are open in user/repository" → repo_owner: "user", repo_name: "repository"
+- "get issues for the main repo" → try to infer from context
+
+Return JSON with repo_owner and repo_name. If repo_owner not specified, leave empty (will default to "ehewes").
+
+Message: "{message}"
+
+Return only JSON:"""
+
+                response = openai.chat.completions.create(
+                    model="gpt-4o-2024-08-06",
+                    messages=[{"role": "user", "content": extraction_prompt}],
+                    temperature=0.1,
+                    response_format={"type": "json_object"}
+                )
+                
+                extracted = json.loads(response.choices[0].message.content.strip())
+                params = {
+                    "repo_owner": extracted.get("repo_owner", ""),
+                    "repo_name": extracted.get("repo_name", "")
+                }
         elif function_type == "create-issue":
             # First try regex patterns
             repo_pattern = r'([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)'
@@ -863,6 +967,11 @@ Return only JSON:"""
                     "title": extracted.get("title", message[:100]),
                     "body": extracted.get("body", message)
                 }
+                
+                # Default to TechEurope repo if no repo is specified at all
+                if not params.get("repo_name") and not params.get("repo_owner"):
+                    params["repo_name"] = "TechEurope"
+                    params["repo_owner"] = "ehewes"
     except Exception as e:
         print(f"Error in parameter extraction: {e}")
         # Fallback to simple regex extraction
@@ -876,11 +985,146 @@ Return only JSON:"""
                     "title": message.split('\n')[0] if '\n' in message else message[:100],
                     "body": message
                 })
+        else:
+            # If no repo pattern found and it's create-issue, default to TechEurope
+            if function_type == "create-issue":
+                params = {
+                    "repo_owner": "ehewes",
+                    "repo_name": "TechEurope", 
+                    "title": message.split('\n')[0] if '\n' in message else message[:100],
+                    "body": message
+                }
+    
     # Force repo_owner to 'ehewes' if missing and repo_name is present
     if params.get("repo_name") and not params.get("repo_owner"):
         params["repo_owner"] = "ehewes"
     return params
 
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+@app.route('/api/list-issues', methods=['POST'])
+def list_github_issues():
+    """List GitHub issues for a repository"""
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.get_json()
+    repo_owner = data.get('repo_owner')
+    repo_name = data.get('repo_name')
+    linked_account_owner_id = data.get('linked_account_owner_id', os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
+
+    # Default repo_owner to 'ehewes' if not provided but repo_name is present
+    if repo_name and not repo_owner:
+        repo_owner = "ehewes"
+
+    if not all([repo_owner, repo_name]):
+        return jsonify({"error": "Missing required fields: repo_owner, repo_name"}), 400
+
+    try:
+        # Execute the GITHUB__LIST_ISSUES function via ACI
+        result = aci.handle_function_call(
+            "GITHUB__LIST_ISSUES",
+            {
+                "path": {
+                    "repo": repo_name,
+                    "owner": repo_owner
+                }
+            },
+            linked_account_owner_id=linked_account_owner_id
+        )
+        
+        return jsonify({
+            "status": "success",
+            "repository": f"{repo_owner}/{repo_name}",
+            "issues": result
+        })
+
+    except Exception as e:
+        print(f"Error listing GitHub issues: {e}")
+        return jsonify({"error": f"Failed to list GitHub issues: {str(e)}"}), 500
+
+
+def execute_list_issues(repo_owner, repo_name, linked_account_owner_id):
+    """Execute GitHub list issues function logic"""
+    try:
+        # Execute the function via ACI
+        result = aci.handle_function_call(
+            "GITHUB__LIST_ISSUES",
+            {
+                "path": {
+                    "repo": repo_name,
+                    "owner": repo_owner
+                }
+            },
+            linked_account_owner_id=linked_account_owner_id
+        )
+        
+        # Format the response for display
+        issues_data = result.get('data', []) if isinstance(result, dict) else result
+        issues_count = len(issues_data) if isinstance(issues_data, list) else 0
+        
+        # Create formatted markdown response with meaningful issue details
+        if issues_count == 0:
+            formatted_response = f"📋 **GitHub Issues for {repo_owner}/{repo_name}**\n\n✅ **No open issues found!** This repository is in great shape.\n\n---\n*Repository appears to be well-maintained with no outstanding issues.*"
+        else:
+            formatted_response = f"📋 **GitHub Issues for {repo_owner}/{repo_name}**\n\n**Total Issues:** {issues_count} open\n\n"
+            
+            for i, issue in enumerate(issues_data, 1):
+                # Extract key information from each issue
+                issue_number = issue.get('number', 'N/A')
+                title = issue.get('title', 'No title')
+                state = issue.get('state', 'unknown')
+                created_at = issue.get('created_at', '')
+                author = issue.get('user', {}).get('login', 'unknown')
+                html_url = issue.get('html_url', '')
+                body = issue.get('body', '')
+                labels = issue.get('labels', [])
+                comments_count = issue.get('comments', 0)
+                
+                # Format creation date
+                if created_at:
+                    try:
+                        from datetime import datetime
+                        created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        created_str = created_date.strftime('%Y-%m-%d')
+                    except:
+                        created_str = created_at[:10]
+                else:
+                    created_str = 'Unknown'
+                
+                # Format labels
+                label_names = [label.get('name', '') for label in labels if label.get('name')]
+                labels_str = ', '.join(label_names) if label_names else 'none'
+                
+                # Create issue summary
+                formatted_response += f"### Issue #{issue_number}: {title}\n"
+                formatted_response += f"- **Status:** {state.title()}\n"
+                formatted_response += f"- **Author:** {author}\n"
+                formatted_response += f"- **Created:** {created_str}\n"
+                formatted_response += f"- **Labels:** {labels_str}\n"
+                formatted_response += f"- **Comments:** {comments_count}\n"
+                
+                if body and body.strip():
+                    # Truncate body if too long
+                    body_preview = body[:200] + "..." if len(body) > 200 else body
+                    formatted_response += f"- **Description:** {body_preview}\n"
+                
+                formatted_response += f"- **Link:** [View Issue]({html_url})\n\n"
+            
+            # Add summary at the end
+            formatted_response += "---\n"
+            formatted_response += f"💡 **Summary:** Found {issues_count} open issue{'s' if issues_count != 1 else ''} that may need attention.\n"
+            formatted_response += f"🔗 **Repository:** [{repo_owner}/{repo_name}](https://github.com/{repo_owner}/{repo_name}/issues)"
+        
+        return jsonify({
+            "response": {
+                "value": formatted_response,
+                "annotations": []
+            },
+            "repository": f"{repo_owner}/{repo_name}",
+            "issues": result,
+            "count": issues_count
+        })
+
+    except Exception as e:
+        print(f"List issues error: {e}")
+        return jsonify({"error": f"Failed to list GitHub issues: {str(e)}"}), 500
