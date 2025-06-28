@@ -219,7 +219,7 @@ def create_github_issue():
     repo_name = data.get('repo_name') 
     title = data.get('title')
     body = data.get('body')
-    linked_account_owner_id = data.get('linked_account_owner_id', 'default_user')
+    linked_account_owner_id = data.get('linked_account_owner_id', os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
 
     if not all([repo_owner, repo_name, title, body]):
         return jsonify({"error": "Missing required fields: repo_owner, repo_name, title, body"}), 400
@@ -232,10 +232,16 @@ def create_github_issue():
         result = aci.handle_function_call(
             "GITHUB__CREATE_ISSUE",
             {
-                "owner": repo_owner,
-                "repo": repo_name,
-                "title": title,
-                "body": body
+                "body": {
+                    "title": title,
+                    "body": body,
+                    "labels": ["enhancement"],
+                    "assignees": []
+                },
+                "path": {
+                    "repo": repo_name,
+                    "owner": repo_owner
+                }
             },
             linked_account_owner_id=linked_account_owner_id
         )
@@ -259,7 +265,7 @@ def analyze_repository():
     data = request.get_json()
     repo_owner = data.get('repo_owner')
     repo_name = data.get('repo_name')
-    linked_account_owner_id = data.get('linked_account_owner_id', 'default_user')
+    linked_account_owner_id = data.get('linked_account_owner_id', os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
 
     if not all([repo_owner, repo_name]):
         return jsonify({"error": "Missing required fields: repo_owner, repo_name"}), 400
@@ -269,8 +275,10 @@ def analyze_repository():
         repo_result = aci.handle_function_call(
             "GITHUB__GET_REPOSITORY",
             {
-                "owner": repo_owner,
-                "repo": repo_name
+                "path": {
+                    "repo": repo_name,
+                    "owner": repo_owner
+                }
             },
             linked_account_owner_id=linked_account_owner_id
         )
@@ -463,7 +471,7 @@ def execute_function():
             if not repo_owner or not repo_name:
                 return jsonify({"error": "Missing repo_owner or repo_name for repository analysis"}), 400
                 
-            return execute_repo_analysis(repo_owner, repo_name, 'default_user')
+            return execute_repo_analysis(repo_owner, repo_name, os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
             
         elif function_name == "create-issue":
             # Extract issue details and create GitHub issue
@@ -488,11 +496,11 @@ def execute_function():
                     "extracted_params": params
                 }), 400
                 
-            return execute_create_issue(repo_owner, repo_name, title, body, 'default_user')
+            return execute_create_issue(repo_owner, repo_name, title, body, os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
             
         elif function_name == "chat":
             # Call the enhanced chat endpoint
-            return execute_chat_function(message, 'default_user')
+            return execute_chat_function(message, os.getenv('DEFAULT_LINKED_ACCOUNT_OWNER_ID', 'peopleagent'))
             
         else:
             return jsonify({"error": f"Unknown function: {function_name}"}), 400
@@ -554,8 +562,10 @@ def execute_repo_analysis(repo_owner, repo_name, linked_account_owner_id):
         repo_result = aci.handle_function_call(
             "GITHUB__GET_REPOSITORY",
             {
-                "owner": repo_owner,
-                "repo": repo_name
+                "path": {
+                    "repo": repo_name,
+                    "owner": repo_owner
+                }
             },
             linked_account_owner_id=linked_account_owner_id
         )
@@ -629,10 +639,16 @@ def execute_create_issue(repo_owner, repo_name, title, body, linked_account_owne
         result = aci.handle_function_call(
             "GITHUB__CREATE_ISSUE",
             {
-                "owner": repo_owner,
-                "repo": repo_name,
-                "title": title,
-                "body": body
+                "body": {
+                    "title": title,
+                    "body": body,
+                    "labels": ["enhancement"],
+                    "assignees": []
+                },
+                "path": {
+                    "repo": repo_name,
+                    "owner": repo_owner
+                }
             },
             linked_account_owner_id=linked_account_owner_id
         )
@@ -804,7 +820,6 @@ Example: {{"repo_owner": "microsoft", "repo_name": "vscode"}}"""
                     "repo_owner": extracted.get("repo_owner", ""),
                     "repo_name": extracted.get("repo_name", "")
                 }
-                
         elif function_type == "create-issue":
             # First try regex patterns
             repo_pattern = r'([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)'
@@ -848,7 +863,6 @@ Return only JSON:"""
                     "title": extracted.get("title", message[:100]),
                     "body": extracted.get("body", message)
                 }
-                
     except Exception as e:
         print(f"Error in parameter extraction: {e}")
         # Fallback to simple regex extraction
@@ -862,7 +876,9 @@ Return only JSON:"""
                     "title": message.split('\n')[0] if '\n' in message else message[:100],
                     "body": message
                 })
-    
+    # Force repo_owner to 'ehewes' if missing and repo_name is present
+    if params.get("repo_name") and not params.get("repo_owner"):
+        params["repo_owner"] = "ehewes"
     return params
 
 
