@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-app
+  labels:
+    app: example-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: example-app
+  template:
+    metadata:
+      labels:
+        app: example-app
+    spec:
+      containers:
+      - name: example-app
+        image: nginx:latest  # ⚠️ Using :latest tag
+        ports:
+        - containerPort: 80
+        # ⚠️ Missing resource limits and requests
+        securityContext:
+          runAsUser: 0  # ⚠️ Running as root
+          privileged: true  # ⚠️ Privileged mode
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-service
+spec:
+  type: LoadBalancer  # 💰 Will incur costs
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: example-app
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: example-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi  # 💰 Large storage allocation
