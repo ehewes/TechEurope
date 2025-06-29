@@ -1,5 +1,5 @@
 cd /Users/ehewes/Documents/TechEurope/Server && python3 -c "
-from src.basic_app import app
+from src.app import app
 print('✅ Starting SRE Guardian Agent with ACI...')
 app.run(debug=True, port=5001, host='127.0.0.1')
 "
