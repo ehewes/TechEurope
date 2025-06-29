@@ -1,33 +1,5 @@
-Flask Server Commands
-====================
-
-To run the Flask server for the TechEurope SRE Agent:
-
-1. Navigate to the Server directory:
-   cd /Users/ehewes/Documents/TechEurope/Server
-
-2. Run the Flask app:
-   python src/app.py
-
-3. The server will start on:
-   http://localhost:5001
-
-Note: The server runs on port 5001 (not the default 5000) as configured in the Flask app.
-
-Environment Requirements:
-- Python 3.x
-- Flask
-- Required packages from requirements.txt
-- .env file with OPENAI_API_KEY and ACI_API_KEY
-
-Available Endpoints:
-- /api/chat - Enhanced chat with ACI.dev functions
-- /api/filter-request - Classify user requests
-- /api/execute-function - Execute classified functions
-- /api/create-issue - Create GitHub issues
-- /api/list-issues - List GitHub issues
-- /api/analyze-repo - Analyze repositories
-- /check-config - Analyze YAML/JSON configs
-
-Test the server:
-curl -X POST http://localhost:5001/api/chat -H "Content-Type: application/json" -d '{"message": "hello"}'
+cd /Users/ehewes/Documents/TechEurope/Server && python3 -c "
+from src.basic_app import app
+print('✅ Starting SRE Guardian Agent with ACI...')
+app.run(debug=True, port=5001, host='127.0.0.1')
+"

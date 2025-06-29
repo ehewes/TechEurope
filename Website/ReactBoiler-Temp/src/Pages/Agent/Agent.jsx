@@ -96,87 +96,33 @@ function ChatContent({ onTitleChange }) {
     const currentFileContent = fileContent;
 
     try {
-      // Step 1: Use intelligent filtration to determine which function to call
-      const filterResponse = await fetch("http://localhost:5001/api/filter-request", {
+      // Use the simplified single endpoint approach
+      const response = await fetch("http://localhost:5001/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: currentInput,
-          has_file: !!currentFile,
-          file_type: currentFile ? currentFile.type : ''
-        }),
-      });
-
-      if (!filterResponse.ok) {
-        throw new Error("Failed to classify request");
-      }
-
-      const classification = await filterResponse.json();
-      
-      // Extract the actual classification from the nested structure
-      const classificationData = classification.classification || classification;
-      
-      // Log classification for debugging
-      console.log("Request classified as:", classificationData);
-
-      // Step 2: Execute the appropriate function
-      const executeResponse = await fetch("http://localhost:5001/api/execute-function", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          function: classificationData.function,
-          params: classificationData.extracted_params || {},
           message: currentInput,
           file_content: currentFileContent
         }),
       });
 
-      const data = await executeResponse.json();
+      const data = await response.json();
 
-      if (executeResponse.ok) {
+      if (response.ok) {
         let content = data.response?.value || data.message || 'Response received';
         
-        // Add function type indicator with emoji
-        const functionEmojis = {
-          'chat': '💬',
-          'config-analysis': '🔍', 
-          'repo-analysis': '📊',
-          'create-issue': '🎫',
-          'list-issues': '📋'
-        };
-        
-        const emoji = functionEmojis[classificationData.function] || '🤖';
-        content = `${emoji} ${content}`;
-        
-        // Process annotations if they exist
-        const annotations = data.response?.annotations || [];
-        annotations.forEach((annotation, index) => {
-          const marker = annotation.text;
-          const footnoteNumber = index + 1;
-          const footnoteText = ``;
-          content = content.replace(marker, footnoteText);
-        });
-
-        // Append references section if annotations exist
-        if (annotations.length > 0) {
-          content += "\n\n---\n\n**References:**\n";
-          annotations.forEach((annotation, index) => {
-            const footnoteNumber = index + 1;
-            content += `${footnoteNumber}. ${annotation.file_citation?.file_id || 'Reference'}\n`;
-          });
-        }
+        // Add SRE agent indicator with emoji
+        content = `🤖 ${content}`;
 
         const assistantMessage = { 
           role: "assistant", 
           content,
           classification: {
-            function: classificationData.function,
-            confidence: classificationData.confidence,
-            emoji: emoji
+            function: "dynamic-agent",
+            confidence: 1.0,
+            emoji: "🤖"
           }
         };
         setMessages((prev) => [...prev, assistantMessage]);
